@@ -56,10 +56,11 @@ export async function POST(request: Request) {
       message: `OTP sent to your ${target}. Please check and enter the 6-digit code.`,
     });
   } catch (error) {
-    return apiErrorResponse(
-      error,
-      "OTP send error:",
-      "Could not send OTP. Please try again.",
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[otp/send] error:", msg, error);
+    return NextResponse.json(
+      { message: `OTP send failed: ${msg}` },
+      { status: 500 },
     );
   }
 }

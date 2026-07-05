@@ -193,7 +193,7 @@ export default function HomePage() {
           <Link href="/" className="flex items-center gap-3 group">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/logo.png"
+              src="/icon.jpeg"
               alt="Capstockx"
               className="h-10 w-10 rounded-xl object-contain transition-transform group-hover:scale-105"
               style={{ boxShadow: "0 0 20px rgba(220,38,38,0.25)" }}
@@ -1175,7 +1175,7 @@ export default function HomePage() {
               <div className="flex items-center gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src="/logo.png"
+                  src="/icon.jpeg"
                   alt="Capstockx"
                   className="h-10 w-10 rounded-xl object-contain"
                 />
@@ -1824,3 +1824,4 @@ function MockChart({ large = false }: { large?: boolean }) {
     </svg>
   );
 }
+

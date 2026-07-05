@@ -1,19 +1,24 @@
-﻿import { Resend } from "resend";
-
-type SendClientCredentialsEmailParams = {
-  to: string;
-  fullName?: string | null;
-  clientId: string;
-  password: string;
-};
+import nodemailer from "nodemailer";
 
 export const SUPPORT_EMAIL = "support@capstockx.in";
 export const FROM_ADDRESS = `"Capstockx" <${SUPPORT_EMAIL}>`;
 
-function getResend() {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error("RESEND_API_KEY is not configured");
-  return new Resend(apiKey);
+function getTransporter() {
+  const host = process.env.SMTP_HOST;
+  const port = parseInt(process.env.SMTP_PORT || "465", 10);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (!host || !user || !pass) {
+    throw new Error("SMTP is not configured (set SMTP_HOST, SMTP_USER, SMTP_PASS in .env)");
+  }
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
 }
 
 type SendOtpEmailParams = {
@@ -25,17 +30,17 @@ export async function sendOtpEmail({ to, otp }: SendOtpEmailParams) {
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#f8fafc;color:#0f172a">
       <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:28px;text-align:center">
-        <h2 style="margin:0 0 8px;font-size:20px;color:#0EA5E9">Capstockx</h2>
+        <h2 style="margin:0 0 8px;font-size:20px;color:#DC2626">Capstockx</h2>
         <p style="margin:0 0 4px;font-size:13px;color:#475569">Your verification code</p>
-        <div style="margin:18px 0;padding:18px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px">
+        <div style="margin:18px 0;padding:18px 12px;background:#fff1f2;border:1px solid #fecaca;border-radius:12px">
           <p style="margin:0;font-size:32px;font-weight:700;color:#0f172a;letter-spacing:8px">${otp}</p>
         </div>
         <p style="margin:0 0 4px;font-size:12px;color:#475569">
           This code expires in 5 minutes. Do not share it with anyone.
         </p>
         <p style="margin:16px 0 0;font-size:11px;color:#94a3b8">
-          If you didn&apos;t request this, please ignore this email or reply to
-          <a href="mailto:${SUPPORT_EMAIL}" style="color:#0EA5E9;text-decoration:none">${SUPPORT_EMAIL}</a>.
+          If you didn't request this, please ignore this email or reply to
+          <a href="mailto:${SUPPORT_EMAIL}" style="color:#DC2626;text-decoration:none">${SUPPORT_EMAIL}</a>.
         </p>
       </div>
     </div>
@@ -50,7 +55,7 @@ export async function sendOtpEmail({ to, otp }: SendOtpEmailParams) {
     `If you didn't request this, reply to ${SUPPORT_EMAIL}.`,
   ].join("\n");
 
-  const { error } = await getResend().emails.send({
+  await getTransporter().sendMail({
     from: FROM_ADDRESS,
     replyTo: SUPPORT_EMAIL,
     to,
@@ -58,9 +63,14 @@ export async function sendOtpEmail({ to, otp }: SendOtpEmailParams) {
     html,
     text,
   });
-
-  if (error) throw new Error(error.message);
 }
+
+type SendClientCredentialsEmailParams = {
+  to: string;
+  fullName?: string | null;
+  clientId: string;
+  password: string;
+};
 
 export async function sendClientCredentialsEmail({
   to,
@@ -72,7 +82,7 @@ export async function sendClientCredentialsEmail({
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;background:#f8fafc;color:#0f172a">
       <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:24px">
-        <h2 style="margin:0 0 12px;font-size:24px;color:#0EA5E9">Capstockx Login Credentials</h2>
+        <h2 style="margin:0 0 12px;font-size:24px;color:#DC2626">Capstockx Login Credentials</h2>
         <p style="margin:0 0 16px;font-size:14px;line-height:1.6">Hello ${name},</p>
         <p style="margin:0 0 16px;font-size:14px;line-height:1.6">
           Your trading account has been activated by the Capstockx team. Use the credentials below to sign in to the web or mobile app.
@@ -86,7 +96,7 @@ export async function sendClientCredentialsEmail({
         </p>
         <p style="margin:16px 0 0;font-size:12px;color:#475569">
           If you did not request this account, reply to this email at
-          <a href="mailto:${SUPPORT_EMAIL}" style="color:#0EA5E9;text-decoration:none">${SUPPORT_EMAIL}</a>.
+          <a href="mailto:${SUPPORT_EMAIL}" style="color:#DC2626;text-decoration:none">${SUPPORT_EMAIL}</a>.
         </p>
         <p style="margin:24px 0 0;font-size:11px;color:#94a3b8;text-align:center">
           &mdash; Team Capstockx
@@ -108,7 +118,7 @@ export async function sendClientCredentialsEmail({
     "— Team Capstockx",
   ].join("\n");
 
-  const { error } = await getResend().emails.send({
+  await getTransporter().sendMail({
     from: FROM_ADDRESS,
     replyTo: SUPPORT_EMAIL,
     to,
@@ -116,6 +126,4 @@ export async function sendClientCredentialsEmail({
     html,
     text,
   });
-
-  if (error) throw new Error(error.message);
 }

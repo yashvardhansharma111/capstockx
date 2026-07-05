@@ -1,0 +1,85 @@
+﻿@import "tailwindcss";
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+
+  /* Capstocks palette — mirrors stock-app/constants/theme.js */
+  --ax-primary: #DC2626;
+  --ax-primary-deep: #B91C1C;
+  --ax-primary-light: #FCA5A5;
+  --ax-primary-muted: rgba(220, 38, 38, 0.12);
+  --ax-text-primary: #0f172a;
+  --ax-text-secondary: #475569;
+  --ax-card: #ffffff;
+  --ax-card-muted: #f1f5f9;
+  --ax-border: #e2e8f0;
+  --ax-border-light: #fff1f2;
+  /* P&L positive — cyan so it reads as positive while staying in the blue family. */
+  --ax-positive: #06B6D4;
+  --ax-negative: #e55461;
+  --ax-tab-inactive: #94a3b8;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  --color-ax-primary: var(--ax-primary);
+  --color-ax-primary-muted: var(--ax-primary-muted);
+  --color-ax-text: var(--ax-text-primary);
+  --color-ax-muted: var(--ax-text-secondary);
+  --color-ax-card: var(--ax-card);
+  --color-ax-cardmuted: var(--ax-card-muted);
+  --color-ax-border: var(--ax-border);
+  --color-ax-borderlight: var(--ax-border-light);
+  --color-ax-positive: var(--ax-positive);
+  --color-ax-negative: var(--ax-negative);
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Inter, Arial, Helvetica, sans-serif;
+  overscroll-behavior: none;
+}
+
+.ax-card {
+  background: #ffffff;
+  border: 1px solid var(--ax-border-light);
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+.ax-card-muted {
+  background: var(--ax-card-muted);
+  border: 1px solid var(--ax-border-light);
+  border-radius: 16px;
+}
+
+/* Capstocks brand utilities */
+.cs-gradient-text {
+  background: linear-gradient(90deg, #DC2626 0%, #991B1B 50%, #DC2626 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: cs-shine 6s linear infinite;
+}
+@keyframes cs-shine {
+  0% { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+.cs-glow {
+  box-shadow:
+    0 10px 25px -5px rgba(220, 38, 38, 0.35),
+    0 8px 10px -6px rgba(153, 27, 27, 0.25);
+}
+.cs-mesh-bg {
+  background:
+    radial-gradient(60% 60% at 20% 10%, rgba(220, 38, 38, 0.18) 0%, rgba(220, 38, 38, 0) 60%),
+    radial-gradient(50% 50% at 90% 0%, rgba(153, 27, 27, 0.18) 0%, rgba(153, 27, 27, 0) 60%),
+    radial-gradient(60% 60% at 100% 80%, rgba(252, 165, 165, 0.20) 0%, rgba(252, 165, 165, 0) 60%);
+}

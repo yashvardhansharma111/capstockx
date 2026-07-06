@@ -45,20 +45,42 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  console.log("\n========== [funds/request] POST ==========");
+  console.log("[funds/request] headers:", {
+    host: request.headers.get("host"),
+    userAgent: request.headers.get("user-agent"),
+    contentType: request.headers.get("content-type"),
+  });
+
   try {
     const user = await getUserFromRequest(request);
     if (!user) {
+      console.log("[funds/request] REJECTED: not authenticated");
       return NextResponse.json(
         { message: "Not authenticated" },
         { status: 401 },
       );
     }
 
+    console.log("[funds/request] user:", {
+      id: (user as { _id: ObjectId })._id,
+      clientId: (user as { clientId?: string }).clientId ?? "n/a",
+    });
+
     const body = await request.json();
     const { amount, method, reference, note, type } = body || {};
 
+    console.log("[funds/request] body received:", {
+      type,
+      amount,
+      method,
+      reference: reference || "(empty)",
+      note: note || "(empty)",
+    });
+
     const numericAmount = Number(amount);
     if (!numericAmount || numericAmount <= 0) {
+      console.log("[funds/request] REJECTED: invalid amount →", amount);
       return NextResponse.json(
         { message: "Valid amount is required" },
         { status: 400 },
@@ -70,12 +92,16 @@ export async function POST(request: Request) {
     const users = db.collection("users");
     const requestType = type === "withdraw" ? "withdraw" : "add";
 
+    console.log("[funds/request] requestType:", requestType);
+
     if (requestType === "withdraw") {
       const currentUser = await users.findOne<{
         tradingBalance?: number;
       }>({ _id: new ObjectId((user as { _id: ObjectId })._id) });
       const currentBalance = Number(currentUser?.tradingBalance ?? 0);
+      console.log("[funds/request] withdraw check: balance=", currentBalance, "requested=", numericAmount);
       if (numericAmount > currentBalance) {
+        console.log("[funds/request] REJECTED: insufficient balance");
         return NextResponse.json(
           { message: "Withdrawal amount cannot exceed current trading balance" },
           { status: 400 },
@@ -83,7 +109,7 @@ export async function POST(request: Request) {
       }
     }
 
-    await funds.insertOne({
+    const result = await funds.insertOne({
       userId: new ObjectId((user as { _id: ObjectId })._id),
       type: requestType,
       amount: numericAmount,
@@ -94,6 +120,10 @@ export async function POST(request: Request) {
       createdAt: new Date(),
     });
 
+    console.log("[funds/request] inserted document id:", result.insertedId.toString());
+    console.log("[funds/request] SUCCESS ✓");
+    console.log("===========================================\n");
+
     return NextResponse.json({
       message:
         requestType === "withdraw"
@@ -101,7 +131,7 @@ export async function POST(request: Request) {
           : "Fund request submitted. Admin will verify payment and update your balance.",
     });
   } catch (error) {
-    console.error("Fund request error:", error);
+    console.error("[funds/request] ERROR:", error);
     return NextResponse.json(
       { message: "Failed to submit fund request" },
       { status: 500 },

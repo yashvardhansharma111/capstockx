@@ -1,8 +1,9 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { FiCopy, FiSmartphone, FiX, FiCreditCard, FiDollarSign, FiGrid } from "react-icons/fi";
+import { QRCodeCanvas } from "qrcode.react";
+import { FiCopy, FiSmartphone, FiX, FiCreditCard, FiDollarSign, FiGrid, FiDownload } from "react-icons/fi";
 import { useAppData } from "@/components/app/AppDataContext";
 import { formatINR } from "@/components/app/format";
 
@@ -30,10 +31,9 @@ type FundRequest = {
 };
 
 const UPI_APPS = [
-  { key: "gpay",    label: "Google Pay",    logo: "/upi/gpay.svg",    upiScheme: "tez://upi/pay" },
-  { key: "phonepe", label: "PhonePe",       logo: "/upi/phonepe.svg", upiScheme: "phonepe://pay" },
-  { key: "paytm",   label: "Paytm",         logo: "/upi/paytm.svg",   upiScheme: "paytmmp://pay" },
-  { key: "other",   label: "Other UPI app", logo: "/upi/upi.svg",     upiScheme: null },
+  { key: "gpay",    label: "Google Pay", logo: "/upi/gpay.svg" },
+  { key: "phonepe", label: "PhonePe",   logo: "/upi/phonepe.svg" },
+  { key: "other",   label: "Other",     logo: "/upi/upi.svg" },
 ];
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -133,7 +133,7 @@ function RequestCard({ item }: { item: FundRequest }) {
             color: isDeposit ? "var(--ax-primary)" : "#e11d48",
           }}
         >
-          {isDeposit ? "Deposit" : "Withdrawal"}
+          {isDeposit ? "Add Fund" : "Withdrawal"}
         </span>
         <span
           className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
@@ -153,6 +153,12 @@ function RequestCard({ item }: { item: FundRequest }) {
   );
 }
 
+function dbg(label: string, data: Record<string, unknown>) {
+  const out = { label, ts: new Date().toISOString(), ...data };
+  console.log(`[UPI-DBG] ${label}`, out);
+  return out;
+}
+
 export default function FundsPage() {
   const { user } = useAppData();
 
@@ -165,6 +171,7 @@ export default function FundsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [chooserOpen, setChooserOpen] = useState(false);
+  const qrRef = useRef<HTMLCanvasElement>(null);
 
   const load = useCallback(async () => {
     try {
@@ -172,10 +179,15 @@ export default function FundsPage() {
         apiFetch<FundConfig>("/api/config/fund-qr"),
         apiFetch<{ requests: FundRequest[] }>("/api/funds/request"),
       ]);
+      dbg("config-loaded", {
+        hasQr: !!cfg.qrUrl,
+        upiId: cfg.paymentMeta?.upiId ?? null,
+        accountHolder: cfg.paymentMeta?.accountHolder ?? null,
+      });
       setFundConfig(cfg);
       setRequests(req.requests ?? []);
-    } catch {
-      // silently ignore
+    } catch (e) {
+      dbg("config-load-error", { error: String(e) });
     }
   }, []);
 
@@ -187,35 +199,43 @@ export default function FundsPage() {
 
   const upiUrl = useMemo(() => {
     if (!paymentMeta?.upiId || !numericAmount) return null;
-    const params = new URLSearchParams({
-      pa: paymentMeta.upiId,
-      pn: paymentMeta.accountHolder ?? "Capstockx",
-      am: String(numericAmount),
-      cu: "INR",
-      tn: note || `Fund deposit for ${user?.clientId ?? user?.email ?? "user"}`,
-    });
-    return `upi://pay?${params.toString()}`;
+    const pa = paymentMeta.upiId;
+    const pn = encodeURIComponent(paymentMeta.accountHolder ?? "Capstockx");
+    const tn = encodeURIComponent(note || `Fund deposit for ${user?.clientId ?? user?.email ?? "user"}`);
+    const am = numericAmount.toFixed(2);
+    const tr = `CSX${Date.now()}`;   // unique transaction reference
+    const tid = tr;                   // transaction ID (same ref)
+    const mc = "6211";               // MCC 6211 = Security brokers / investment platforms
+    return `upi://pay?pa=${pa}&pn=${pn}&mc=${mc}&tid=${tid}&tr=${tr}&tn=${tn}&am=${am}&cu=INR`;
   }, [numericAmount, note, paymentMeta, user]);
 
-  function openUpiApp(app: (typeof UPI_APPS)[0]) {
+  // QR uses the same full URL — scanned via camera, not a deep link caller check
+  const qrUpiUrl = upiUrl;
+
+  function openUpiApp(_app: (typeof UPI_APPS)[0]) {
     if (!upiUrl) return;
     setChooserOpen(false);
+    // Use plain upi:// — Android routes it through its own intent chooser.
+    // App-specific schemes (tez://, phonepe://) are rejected from browsers as
+    // unverified merchant requests; the system intent path is treated as P2P.
+    const a = document.createElement("a");
+    a.href = upiUrl;
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
 
-    const qs = upiUrl.slice("upi://pay?".length);
-    const targetUrl = app.upiScheme ? `${app.upiScheme}?${qs}` : upiUrl;
-
-    if (!app.upiScheme) {
-      window.location.href = upiUrl;
-      return;
-    }
-
-    // If the specific app is not installed, fall back to generic upi:// after 1.5s
-    const fallback = setTimeout(() => { window.location.href = upiUrl; }, 1500);
-    const cancel = () => clearTimeout(fallback);
-    window.addEventListener("blur", cancel, { once: true });
-    document.addEventListener("visibilitychange", cancel, { once: true });
-
-    window.location.href = targetUrl;
+  function downloadQr() {
+    const canvas = qrRef.current;
+    if (!canvas) return;
+    const url = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pay-${numericAmount.toFixed(0)}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
   async function handleSubmit(e?: React.FormEvent) {
@@ -322,7 +342,7 @@ export default function FundsPage() {
               boxShadow: mode === t ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
             }}
           >
-            {t === "deposit" ? "Deposit" : "Withdraw"}
+            {t === "deposit" ? <strong>Add Fund</strong> : "Withdraw"}
           </button>
         ))}
       </div>
@@ -399,34 +419,88 @@ export default function FundsPage() {
             </div>
             {paymentMeta?.upiId ? (
               <>
-                <p className="text-sm" style={{ color: "var(--ax-text-secondary)" }}>
-                  UPI ID:{" "}
-                  <span className="font-semibold" style={{ color: "var(--ax-text-primary)" }}>
-                    {paymentMeta.upiId}
-                  </span>
-                </p>
-                {paymentMeta.accountHolder ? (
-                  <p className="mt-0.5 text-xs" style={{ color: "var(--ax-text-secondary)" }}>
-                    {paymentMeta.accountHolder}
+                {/* UPI ID row */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs" style={{ color: "var(--ax-text-secondary)" }}>UPI ID</p>
+                    <p className="text-sm font-semibold" style={{ color: "var(--ax-text-primary)" }}>
+                      {paymentMeta.upiId}
+                    </p>
+                    {paymentMeta.accountHolder ? (
+                      <p className="text-xs" style={{ color: "var(--ax-text-secondary)" }}>
+                        {paymentMeta.accountHolder}
+                      </p>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(paymentMeta.upiId!)}
+                    className="rounded-lg p-2"
+                    style={{ background: "var(--ax-primary-muted)" }}
+                    title="Copy UPI ID"
+                  >
+                    <FiCopy className="h-4 w-4" style={{ color: "var(--ax-primary)" }} />
+                  </button>
+                </div>
+
+                {/* Dynamic QR — generated from upiUrl with amount embedded */}
+                {canPay && upiUrl ? (
+                  <div className="mt-4 flex flex-col items-center gap-3">
+                    <p className="text-center text-xs" style={{ color: "var(--ax-text-secondary)" }}>
+                      Scan with any UPI app — or save &amp; pick from gallery in GPay / PhonePe
+                    </p>
+                    <div
+                      className="rounded-2xl border p-3"
+                      style={{ borderColor: "var(--ax-border)", background: "#fff" }}
+                    >
+                      <QRCodeCanvas
+                        ref={qrRef}
+                        value={qrUpiUrl ?? ""}
+                        size={200}
+                        marginSize={1}
+                      />
+                    </div>
+                    <p className="text-center text-xs font-semibold" style={{ color: "var(--ax-primary)" }}>
+                      ₹{numericAmount.toFixed(2)} to {paymentMeta.upiId}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={downloadQr}
+                      className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+                      style={{ background: "var(--ax-primary)" }}
+                    >
+                      <FiDownload className="h-4 w-4" />
+                      Save QR to Gallery
+                    </button>
+                    <p className="text-center text-[11px] leading-relaxed" style={{ color: "var(--ax-text-secondary)" }}>
+                      After paying, enter your UTR / transaction ID below and tap Submit Request.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs" style={{ color: "var(--ax-text-secondary)" }}>
+                    Enter an amount above to generate the payment QR.
                   </p>
-                ) : null}
+                )}
+
+                {/* Submit request */}
                 <div className="mt-4 flex gap-3">
                   <button
                     type="button"
                     disabled={!canPay}
                     onClick={() => setChooserOpen(true)}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white transition disabled:opacity-50"
-                    style={{ background: "var(--ax-primary)" }}
+                    className="flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold transition disabled:opacity-40"
+                    style={{ borderColor: "var(--ax-border)", border: "1px solid", color: "var(--ax-text-secondary)" }}
+                    title="Try opening in a UPI app directly"
                   >
                     <FiSmartphone className="h-4 w-4" />
-                    Pay on UPI
+                    Open App
                   </button>
                   <button
                     type="button"
-                    disabled={submitting}
+                    disabled={submitting || !canPay}
                     onClick={() => void handleSubmit()}
-                    className="flex flex-1 items-center justify-center rounded-xl border py-3 text-sm font-semibold transition disabled:opacity-50"
-                    style={{ borderColor: "var(--ax-primary)", color: "var(--ax-primary)" }}
+                    className="flex flex-1 items-center justify-center rounded-xl py-3 text-sm font-bold text-white transition disabled:opacity-50"
+                    style={{ background: "var(--ax-primary)" }}
                   >
                     {submitting ? "Submitting…" : "Submit Request"}
                   </button>

@@ -19,7 +19,7 @@ const NAV = [
   { href: "/app/orders", label: "Orders", icon: FiBookOpen },
   { href: "/app/explore", label: "Explore", icon: FiCompass },
   { href: "/app/investments", label: "Mutual Funds", icon: FiPieChart },
-  { href: "/app/profile", label: "Profile", icon: FiUser },
+  { href: "/app/profile", label: "Account", icon: FiUser },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

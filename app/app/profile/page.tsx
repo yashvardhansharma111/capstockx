@@ -46,7 +46,7 @@ export default function ProfilePage() {
         className="text-xl font-bold"
         style={{ color: "var(--ax-text-primary)" }}
       >
-        Profile
+        Account
       </h2>
 
       <div className="flex flex-col items-center pt-4">

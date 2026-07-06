@@ -57,9 +57,11 @@ const YAHOO_EXTRA_HEADERS: Record<string, string> = {
 
 const INDEX_DEFS = [
   { label: "NIFTY", symbol: "^NSEI", tvSymbol: "NSE:NIFTY" },
-  /** Bank Nifty — distinct from NIFTY 50 */
   { label: "BANK NIFTY", symbol: "^NSEBANK", tvSymbol: "NSE:BANKNIFTY" },
   { label: "SENSEX", symbol: "^BSESN", tvSymbol: "BSE:SENSEX" },
+  { label: "FIN NIFTY", symbol: "NIFTY_FIN_SERVICE.NS", tvSymbol: "NSE:FINNIFTY" },
+  { label: "MIDCAP NIFTY", symbol: "^CNXMIDCAP", tvSymbol: "NSE:MIDCPNIFTY" },
+  { label: "BANKEX", symbol: "^BSEBANKEX", tvSymbol: "BSE:BANKEX" },
 ];
 
 const STOCK_DEFS = [
@@ -120,6 +122,33 @@ const fallbackConfig: HomeConfig = {
       change: 412.5,
       changePct: 0.56,
       tvSymbol: "BSE:SENSEX",
+
+    },
+    {
+      name: "FIN NIFTY",
+      symbol: "NIFTY_FIN_SERVICE.NS",
+      value: 23450.6,
+      change: 118.4,
+      changePct: 0.51,
+      tvSymbol: "NSE:FINNIFTY",
+
+    },
+    {
+      name: "MIDCAP NIFTY",
+      symbol: "^CNXMIDCAP",
+      value: 53820.3,
+      change: 290.1,
+      changePct: 0.54,
+      tvSymbol: "NSE:MIDCPNIFTY",
+
+    },
+    {
+      name: "BANKEX",
+      symbol: "^BSEBANKEX",
+      value: 56740.2,
+      change: 245.8,
+      changePct: 0.44,
+      tvSymbol: "BSE:BANKEX",
 
     },
   ],

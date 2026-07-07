@@ -303,6 +303,7 @@ export const INDEX_TOKENS: Record<string, { exchange: string; token: string }> =
     NIFTY: { exchange: "NSE", token: "99926000" },
     BANKNIFTY: { exchange: "NSE", token: "99926009" },
     FINNIFTY: { exchange: "NSE", token: "99926037" },
-    SENSEX: { exchange: "BSE", token: "99919000" },
     MIDCPNIFTY: { exchange: "NSE", token: "99926074" },
+    SENSEX: { exchange: "BSE", token: "99919000" },
+    BANKEX: { exchange: "BSE", token: "99919012" },
   };

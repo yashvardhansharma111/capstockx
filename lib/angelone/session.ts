@@ -2,7 +2,7 @@
  * Angel One SmartAPI session manager.
  * Handles login with TOTP, token caching, and auto-refresh.
  */
-import { generateSync, TOTP } from "otplib";
+import { generateSync } from "otplib";
 
 const BASE = "https://apiconnect.angelone.in";
 
@@ -105,6 +105,17 @@ export async function authHeaders(): Promise<Record<string, string>> {
   };
 }
 
+async function safeJson(res: Response) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(
+      `Angel One returned non-JSON (HTTP ${res.status}): ${text.slice(0, 120)}`,
+    );
+  }
+}
+
 /** Authenticated POST to SmartAPI. */
 export async function angelPost(path: string, body: unknown) {
   const headers = await authHeaders();
@@ -114,7 +125,7 @@ export async function angelPost(path: string, body: unknown) {
     body: JSON.stringify(body),
   });
 
-  const json = await res.json();
+  const json = await safeJson(res);
 
   // Token expired → re-login once
   if (json.message?.toLowerCase().includes("invalid token")) {
@@ -125,7 +136,7 @@ export async function angelPost(path: string, body: unknown) {
       headers: h2,
       body: JSON.stringify(body),
     });
-    return r2.json();
+    return safeJson(r2);
   }
 
   return json;

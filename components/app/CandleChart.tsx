@@ -81,6 +81,10 @@ export function CandleChart({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Abort any in-flight request on unmount
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
 
   // Observe container width for responsive sizing.
   useEffect(() => {
@@ -107,6 +111,11 @@ export function CandleChart({
 
   const loadData = useCallback(
     async (r: Range, silent: boolean) => {
+      // Cancel any previous in-flight request
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       if (!silent) {
         setLoading(true);
         setError(null);
@@ -120,6 +129,7 @@ export function CandleChart({
         }).toString();
         const res = await fetch(`/api/angel/candles?${qs}`, {
           credentials: "include",
+          signal: controller.signal,
         });
         const data = (await res.json()) as {
           candles?: Candle[];
@@ -140,6 +150,7 @@ export function CandleChart({
           onPriceUpdate(data.candles[data.candles.length - 1].close);
         }
       } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") return;
         if (!silent) {
           setError(e instanceof Error ? e.message : "Failed to load chart");
           setCandles(null);

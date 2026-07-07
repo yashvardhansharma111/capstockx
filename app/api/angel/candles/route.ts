@@ -124,17 +124,42 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Angel returns [[timestamp, O, H, L, C, V], ...]
-    const candles = (result.data as any[]).map(
-      ([time, open, high, low, close, volume]: any[]) => ({
-        time: new Date(time).getTime() / 1000, // Unix seconds
+    const parseCandles = (raw: any[]) =>
+      raw.map(([time, open, high, low, close, volume]: any[]) => ({
+        time: new Date(time).getTime() / 1000,
         open: Number(open),
         high: Number(high),
         low: Number(low),
         close: Number(close),
         volume: Number(volume),
-      }),
-    );
+      }));
+
+    let candles = parseCandles(result.data as any[]);
+
+    // BSE indices (e.g. BANKEX) often have no intraday data — fall back to daily candles.
+    if (candles.length === 0 && resolvedExchange === "BSE" && interval !== "ONE_DAY") {
+      console.log(`[angel/candles] BSE intraday empty for ${symbolName}, retrying with ONE_DAY`);
+      const fbFrom = new Date(toDate.getTime() - 90 * 24 * 60 * 60 * 1000);
+      const fbBody = {
+        exchange: resolvedExchange,
+        symboltoken: token,
+        interval: "ONE_DAY",
+        fromdate: formatDate(fbFrom),
+        todate: formatDate(toDate),
+      };
+      try {
+        const fbResult = await angelPost(
+          "/rest/secure/angelbroking/historical/v1/getCandleData",
+          fbBody,
+        );
+        if (fbResult?.status && Array.isArray(fbResult.data) && fbResult.data.length > 0) {
+          candles = parseCandles(fbResult.data);
+          console.log(`[angel/candles] BSE daily fallback: ${candles.length} candles`);
+        }
+      } catch (fbErr) {
+        console.warn(`[angel/candles] BSE daily fallback failed for ${symbolName}`, fbErr);
+      }
+    }
 
     const payload = { symbol: symbolName, exchange, range, interval, candles };
     candleCache.set(cacheKey, { payload, fetchedAt: Date.now() });

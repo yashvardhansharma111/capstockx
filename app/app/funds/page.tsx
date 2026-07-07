@@ -321,7 +321,7 @@ export default function FundsPage() {
           className="mt-4 border-t pt-3 text-[11px] leading-relaxed"
           style={{ borderColor: "var(--ax-border)", color: "var(--ax-text-secondary)" }}
         >
-          Deposits and withdrawals require admin approval.
+          Deposits and withdrawals require broker approval.
         </p>
       </div>
 
@@ -508,7 +508,7 @@ export default function FundsPage() {
               </>
             ) : (
               <p className="text-sm" style={{ color: "var(--ax-text-secondary)" }}>
-                Admin has not configured a UPI ID yet.
+                Broker has not configured a UPI ID yet.
               </p>
             )}
           </div>
@@ -536,7 +536,7 @@ export default function FundsPage() {
           style={{ borderColor: "var(--ax-border)", background: "#ffffff" }}
         >
           <p className="mb-4 text-sm leading-relaxed" style={{ color: "var(--ax-text-secondary)" }}>
-            Withdrawal requests are sent to the admin panel and processed manually after verification.
+            Withdrawal requests are sent to the broker and processed manually after verification.
           </p>
           <button
             type="button"

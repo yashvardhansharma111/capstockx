@@ -45,7 +45,15 @@ export async function loadInstruments(): Promise<ScripCache> {
 
   const downloadPromise = (async () => {
     console.log("[instruments] Downloading scrip master...");
-    const res = await fetch(SCRIP_MASTER_URL);
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 40_000); // 40s hard cap
+    let res: Response;
+    try {
+      res = await fetch(SCRIP_MASTER_URL, { signal: controller.signal });
+    } finally {
+      clearTimeout(tid);
+    }
+    if (!res.ok) throw new Error(`Scrip master fetch failed: HTTP ${res.status}`);
     const raw: any[] = await res.json();
 
     const data: Instrument[] = raw.map((r) => ({

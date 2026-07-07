@@ -127,8 +127,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       message:
         requestType === "withdraw"
-          ? "Withdraw request submitted. Admin will verify and process your withdrawal."
-          : "Fund request submitted. Admin will verify payment and update your balance.",
+          ? "Withdraw request submitted. Broker will verify and process your withdrawal."
+          : "Fund request submitted. Broker will verify payment and update your balance.",
     });
   } catch (error) {
     console.error("[funds/request] ERROR:", error);

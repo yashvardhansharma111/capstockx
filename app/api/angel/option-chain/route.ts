@@ -19,17 +19,15 @@ export async function GET(request: NextRequest) {
     let expiry = sp.get("expiry") || "";
     const exchange = sp.get("exchange") || "NFO";
 
-    // If no expiry, find nearest
-    if (!expiry) {
-      const expiries = await getExpiries(symbol, exchange);
-      if (!expiries.length) {
-        return NextResponse.json(
-          { error: `No options found for ${symbol}` },
-          { status: 404 },
-        );
-      }
-      expiry = expiries[0]; // Nearest expiry
+    // Load expiries once — reused at the bottom for the dropdown
+    let allExpiries = await getExpiries(symbol, exchange);
+    if (!allExpiries.length) {
+      return NextResponse.json(
+        { error: `No options found for ${symbol}` },
+        { status: 404 },
+      );
     }
+    if (!expiry) expiry = allExpiries[0]; // nearest expiry
 
     // Get all CE/PE instruments for this expiry
     const { calls: allCalls, puts: allPuts } = await getOptionChainInstruments(
@@ -45,36 +43,36 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch spot price first (needed to pick ATM strikes)
+    // Fetch spot price first (needed to pick ATM strikes); failures are non-fatal
     let spotPrice = 0;
-    const idxInfo = INDEX_TOKENS[symbol];
-    if (idxInfo) {
-      const spotResult = await angelPost(
-        "/rest/secure/angelbroking/market/v1/quote/",
-        {
-          mode: "LTP",
-          exchangeTokens: { [idxInfo.exchange]: [idxInfo.token] },
-        },
-      );
-      if (spotResult.status && spotResult.data?.fetched?.[0]) {
-        spotPrice = Number(spotResult.data.fetched[0].ltp);
-      }
-    } else {
-      // For stocks/commodities — spot = underlying equity LTP
-      const { findBySymbol } = await import("@/lib/angelone/instruments");
-      const underlyingExchange = exchange === "NFO" ? "NSE" : exchange === "BFO" ? "BSE" : "MCX";
-      const inst =
-        (await findBySymbol(underlyingExchange, symbol)) ||
-        (await findBySymbol(underlyingExchange, `${symbol}-EQ`));
-      if (inst) {
+    try {
+      const idxInfo = INDEX_TOKENS[symbol];
+      if (idxInfo) {
         const spotResult = await angelPost(
           "/rest/secure/angelbroking/market/v1/quote/",
-          { mode: "LTP", exchangeTokens: { [underlyingExchange]: [inst.token] } },
+          { mode: "LTP", exchangeTokens: { [idxInfo.exchange]: [idxInfo.token] } },
         );
         if (spotResult.status && spotResult.data?.fetched?.[0]) {
           spotPrice = Number(spotResult.data.fetched[0].ltp);
         }
+      } else {
+        const { findBySymbol } = await import("@/lib/angelone/instruments");
+        const underlyingExchange = exchange === "NFO" ? "NSE" : exchange === "BFO" ? "BSE" : "MCX";
+        const inst =
+          (await findBySymbol(underlyingExchange, symbol)) ||
+          (await findBySymbol(underlyingExchange, `${symbol}-EQ`));
+        if (inst) {
+          const spotResult = await angelPost(
+            "/rest/secure/angelbroking/market/v1/quote/",
+            { mode: "LTP", exchangeTokens: { [underlyingExchange]: [inst.token] } },
+          );
+          if (spotResult.status && spotResult.data?.fetched?.[0]) {
+            spotPrice = Number(spotResult.data.fetched[0].ltp);
+          }
+        }
       }
+    } catch (spotErr) {
+      console.warn("[angel/option-chain] spot price fetch failed:", spotErr);
     }
 
     // Limit to strikes near ATM — huge perf win (200+ strikes → ~40)
@@ -118,17 +116,20 @@ export async function GET(request: NextRequest) {
     const BATCH = 50;
     for (let i = 0; i < nfoTokens.length; i += BATCH) {
       const batch = nfoTokens.slice(i, i + BATCH);
-      const qResult = await angelPost(
-        "/rest/secure/angelbroking/market/v1/quote/",
-        {
-          mode: "FULL",
-          exchangeTokens: { [exchange]: batch },
-        },
-      );
-      if (qResult.status && qResult.data?.fetched) {
-        for (const q of qResult.data.fetched) {
-          quoteMap.set(q.symbolToken || q.symboltoken, q);
+      try {
+        const qResult = await angelPost(
+          "/rest/secure/angelbroking/market/v1/quote/",
+          { mode: "FULL", exchangeTokens: { [exchange]: batch } },
+        );
+        if (qResult.status && qResult.data?.fetched) {
+          for (const q of qResult.data.fetched) {
+            quoteMap.set(q.symbolToken || q.symboltoken, q);
+          }
+        } else {
+          console.warn("[angel/option-chain] batch quote non-ok:", qResult?.message);
         }
+      } catch (batchErr) {
+        console.warn("[angel/option-chain] batch quote failed, continuing:", batchErr);
       }
     }
 
@@ -177,16 +178,13 @@ export async function GET(request: NextRequest) {
       ).strike;
     }
 
-    // Get all available expiries for the dropdown
-    const expiries = await getExpiries(symbol, exchange);
-
     return NextResponse.json({
       symbol,
       expiry,
       exchange,
       spotPrice,
       atmStrike,
-      expiries,
+      expiries: allExpiries,
       chain,
     });
   } catch (err: any) {
